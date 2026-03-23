@@ -1,0 +1,5 @@
+{
+  "name": "N-Body Sequencer",
+  "description": "A generative 16-step sequencer based on a 2D N-body physics simulation.",
+  "requestFramePermissions": []
+}

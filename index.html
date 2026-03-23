@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N-Body Sequencer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: #eee;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+        }
+        #ui-container {
+            width: 350px;
+            height: 100vh;
+            overflow-y: auto;
+            background: #111;
+            border-right: 1px solid #333;
+            padding: 15px;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+        canvas {
+            display: block;
+            flex-grow: 1;
+            height: 100vh;
+        }
+        .panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #444; }
+        details { margin-top: 10px; }
+        summary { cursor: pointer; font-weight: bold; outline: none; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            gap: 2px;
+            margin-top: 10px;
+        }
+        .step {
+            width: 15px;
+            height: 20px;
+            background: #222;
+            border: 1px solid #444;
+            cursor: pointer;
+        }
+        .step.active { background: #4CAF50; }
+        .step.current { border-color: #fff; }
+        .step-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .step-pitch {
+            width: 100%;
+            font-size: 8px;
+            padding: 0;
+            appearance: none;
+            text-align: center;
+            background: transparent;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+        }
+        .step-pitch:hover { color: #fff; }
+        .controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        select {
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 3px;
+            font-family: inherit;
+        }
+        .universe-controls {
+            display: grid;
+            grid-template-columns: auto 1fr auto 1fr auto 1fr;
+            gap: 5px 10px;
+            font-size: 12px;
+            align-items: center;
+        }
+        .universe-controls h4 {
+            grid-column: span 6;
+            margin: 10px 0 5px 0;
+            border-bottom: 1px solid #444;
+            padding-bottom: 2px;
+            color: #aaa;
+        }
+        .universe-controls label {
+            text-align: right;
+            color: #ccc;
+        }
+        .universe-controls select, .universe-controls input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-container">
+        <div class="panel" style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="start-btn">Start Audio & Simulation</button>
+            <div style="display: flex; gap: 8px;">
+                <button id="toggle-physics-btn" style="flex: 1;">Pause Physics</button>
+                <button id="toggle-audio-btn" style="flex: 1;">Mute Audio</button>
+            </div>
+            <div id="status" style="text-align: center; color: #888;">Stopped</div>
+        </div>
+
+        <details class="panel">
+            <summary>Universe Controls</summary>
+            <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <label style="font-size: 12px; color: #ccc;">Master Volume</label>
+                <input type="range" id="master-vol" min="0" max="1" step="0.01" value="0.5" style="flex-grow: 1;">
+            </div>
+            <div class="universe-controls">
+                <h4>Filter Cutoff</h4>
+                <label>Map</label>
+                <select id="map-cutoff">
+                    <option value="none">None</option>
+                    <option value="x" selected>X</option>
+                    <option value="y">Y</option>
+                </select>
+                <label>Min</label><input type="range" id="min-cutoff" min="20" max="10000" value="100">
+                <label>Max</label><input type="range" id="max-cutoff" min="20" max="10000" value="5000">
+
+                <h4>Resonance</h4>
+                <label>Map</label>
+                <select id="map-res">
+                    <option value="none" selected>None</option>
+                    <option value="x">X</option>
+                    <option value="y">Y</option>
+                </select>
+                <label>Min</label><input type="range" id="min-res" min="0" max="30" value="1">
+                <label>Max</label><input type="range" id="max-res" min="0" max="30" value="10">
+
+                <h4>Fuzz / Clipping</h4>
+                <label>Map</label>
+                <select id="map-fuzz">
+                    <option value="none">None</option>
+                    <option value="x">X</option>
+                    <option value="y" selected>Y</option>
+                </select>
+                <label>Min</label><input type="range" id="min-fuzz" min="0" max="1" step="0.01" value="0">
+                <label>Max</label><input type="range" id="max-fuzz" min="0" max="1" step="0.01" value="0.8">
+
+                <h4>Reverb</h4>
+                <label>Map</label>
+                <select id="map-reverb">
+                    <option value="none">None</option>
+                    <option value="x">X</option>
+                    <option value="y" selected>Y</option>
+                </select>
+                <label>Min</label><input type="range" id="min-reverb" min="0" max="1" step="0.01" value="0">
+                <label>Max</label><input type="range" id="max-reverb" min="0" max="1" step="0.01" value="0.8">
+
+                <h4>Phaser</h4>
+                <label>Map</label>
+                <select id="map-phaser">
+                    <option value="none" selected>None</option>
+                    <option value="x">X</option>
+                    <option value="y">Y</option>
+                </select>
+                <label>Min</label><input type="range" id="min-phaser" min="0" max="1" step="0.01" value="0">
+                <label>Max</label><input type="range" id="max-phaser" min="0" max="1" step="0.01" value="0.8">
+            </div>
+        </details>
+
+        <div id="bodies-ui"></div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // --- Physics & App State ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let physicsRunning = true;
+        let audioMuted = false;
+
+        function resize() {
+            width = canvas.width = window.innerWidth - 350;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let draggedBody = null;
+        let mouseX = 0;
+        let mouseY = 0;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            
+            for (let i = bodies.length - 1; i >= 0; i--) {
+                const b = bodies[i];
+                const dist = Math.sqrt((b.x - mx)**2 + (b.y - my)**2);
+                if (dist < b.mass + 15) {
+                    draggedBody = b;
+                    b.isDragged = true;
+                    mouseX = mx;
+                    mouseY = my;
+                    lastMouseX = mx;
+                    lastMouseY = my;
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            
+            if (draggedBody) {
+                draggedBody.x = mouseX;
+                draggedBody.y = mouseY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (draggedBody) {
+                draggedBody.vx += (mouseX - lastMouseX) * 0.05;
+                draggedBody.vy += (mouseY - lastMouseY) * 0.05;
+                draggedBody.isDragged = false;
+                draggedBody = null;
+            }
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            if (draggedBody) {
+                draggedBody.isDragged = false;
+                draggedBody = null;
+            }
+        });
+
+        const G = 0.5; // Gravity constant
+        const SYNC_DIST = 100; // Distance for quantum entanglement
+
+        // --- Audio Engine ---
+        let audioCtx;
+        let masterGain;
+        let masterReverb;
+        let isPlaying = false;
+        let sharedFuzzCurve;
+
+        const universe = {
+            cutoff: { map: 'x', min: 100, max: 5000 },
+            res: { map: 'none', min: 1, max: 10 },
+            fuzz: { map: 'y', min: 0, max: 0.8 },
+            reverb: { map: 'y', min: 0, max: 0.8 },
+            phaser: { map: 'none', min: 0, max: 0.8 }
+        };
+
+        function updateUniverseState() {
+            ['cutoff', 'res', 'fuzz', 'reverb', 'phaser'].forEach(param => {
+                const mapEl = document.getElementById(`map-${param}`);
+                const minEl = document.getElementById(`min-${param}`);
+                const maxEl = document.getElementById(`max-${param}`);
+                if (mapEl && minEl && maxEl) {
+                    universe[param].map = mapEl.value;
+                    universe[param].min = parseFloat(minEl.value);
+                    universe[param].max = parseFloat(maxEl.value);
+                }
+            });
+        }
+
+        // Sequencer timing
+        let currentStep = 0;
+        let nextNoteTime = 0;
+        const lookahead = 25.0; // ms
+        const scheduleAheadTime = 0.1; // s
+        let tempo = 120;
+        let timerID;
+
+        function createReverb() {
+            const length = 44100 * 2;
+            const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
+            for (let i = 0; i < 2; i++) {
+                const channel = impulse.getChannelData(i);
+                for (let j = 0; j < length; j++) {
+                    channel[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / length, 3);
+                }
+            }
+            const convolver = audioCtx.createConvolver();
+            convolver.buffer = impulse;
+            return convolver;
+        }
+
+        function createDistortionCurve(amount) {
+            const k = typeof amount === 'number' ? amount : 50;
+            const n_samples = 44100;
+            const curve = new Float32Array(n_samples);
+            const deg = Math.PI / 180;
+            for (let i = 0; i < n_samples; ++i) {
+                const x = i * 2 / n_samples - 1;
+                curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+        }
+
+        async function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = parseFloat(document.getElementById('master-vol').value);
+            
+            masterReverb = createReverb();
+            sharedFuzzCurve = createDistortionCurve(100);
+            
+            // Routing: Nodes -> Master -> Destination
+            masterReverb.connect(masterGain);
+            masterGain.connect(audioCtx.destination);
+            
+            // Listeners for UI
+            document.querySelectorAll('.universe-controls input, .universe-controls select').forEach(el => {
+                el.addEventListener('input', updateUniverseState);
+            });
+            document.getElementById('master-vol').addEventListener('input', (e) => {
+                if (masterGain && !audioMuted) masterGain.gain.value = parseFloat(e.target.value);
+            });
+            document.getElementById('toggle-physics-btn').addEventListener('click', (e) => {
+                physicsRunning = !physicsRunning;
+                e.target.innerText = physicsRunning ? "Pause Physics" : "Resume Physics";
+            });
+            document.getElementById('toggle-audio-btn').addEventListener('click', (e) => {
+                audioMuted = !audioMuted;
+                e.target.innerText = audioMuted ? "Unmute Audio" : "Mute Audio";
+                if (masterGain) {
+                    masterGain.gain.value = audioMuted ? 0 : parseFloat(document.getElementById('master-vol').value);
+                }
+            });
+            updateUniverseState();
+            
+            isPlaying = true;
+            nextNoteTime = audioCtx.currentTime + 0.05;
+            scheduler();
+            document.getElementById('status').innerText = 'Running';
+            document.getElementById('status').style.color = '#4CAF50';
+        }
+
+        function nextNote() {
+            const secondsPerBeat = 60.0 / tempo;
+            nextNoteTime += 0.25 * secondsPerBeat; // 16th notes
+            currentStep = (currentStep + 1) % 16;
+        }
+
+        function scheduleNote(stepNumber, time) {
+            // Entanglement logic
+            const playMap = new Map(); // body -> sequence to play
+            for (let i = 0; i < bodies.length; i++) {
+                playMap.set(bodies[i], bodies[i]); // Default: play own sequence
+            }
+
+            for (let i = 0; i < bodies.length; i++) {
+                for (let j = i + 1; j < bodies.length; j++) {
+                    const b1 = bodies[i];
+                    const b2 = bodies[j];
+                    const dx = b1.x - b2.x;
+                    const dy = b1.y - b2.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < SYNC_DIST) {
+                        // Quantum entanglement! 50% chance to swap
+                        if (Math.random() > 0.5) {
+                            playMap.set(b1, b2);
+                            playMap.set(b2, b1);
+                        }
+                    }
+                }
+            }
+
+            // Update UI
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.step').forEach(el => {
+                    el.classList.remove('current');
+                    el.style.boxShadow = '';
+                    el.style.borderColor = '';
+                });
+                bodies.forEach((body, idx) => {
+                    const stepEl = document.getElementById(`step-${idx}-${stepNumber}`);
+                    if (stepEl) {
+                        stepEl.classList.add('current');
+                        const seqSource = playMap.get(body);
+                        if (seqSource !== body && seqSource.sequence[stepNumber]) {
+                            // Highlight the step with the borrowed body's color
+                            stepEl.style.boxShadow = `0 0 12px ${seqSource.color}, inset 0 0 8px ${seqSource.color}`;
+                            stepEl.style.borderColor = seqSource.color;
+                        }
+                    }
+                });
+            });
+
+            // Play notes
+            bodies.forEach(body => {
+                const seqSource = playMap.get(body);
+                if (seqSource.sequence[stepNumber]) {
+                    body.playNote(time, seqSource, stepNumber);
+                }
+            });
+        }
+
+        function scheduler() {
+            while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+                scheduleNote(currentStep, nextNoteTime);
+                nextNote();
+            }
+            timerID = setTimeout(scheduler, lookahead);
+        }
+
+        // --- Body Class ---
+        class Body {
+            constructor(id, x, y, mass, color) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.mass = mass;
+                this.color = color;
+                this.isDragged = false;
+                this.pulse = 0;
+                this.sequence = Array(16).fill(false);
+                // Randomize some steps initially
+                for(let i=0; i<16; i++) if(Math.random() > 0.7) this.sequence[i] = true;
+                this.type = id === 0 ? 'kick' : (id === 1 ? 'snare' : 'synth');
+                
+                const notes = [65.41, 73.42, 82.41, 87.31, 98.00, 110.00, 123.47, 130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88];
+                this.pitch = notes[(id * 2) % notes.length];
+                this.pitches = Array(16).fill(this.pitch);
+                this.lastPlayedPitch = this.pitch;
+                
+                // Audio parameters updated by physics
+                this.currentVolume = 0;
+                this.currentCutoff = 1000;
+                this.currentRes = 1;
+                this.currentFuzz = 0;
+                this.currentReverb = 0;
+                this.currentPhaser = 0;
+                
+                this.createUI();
+            }
+
+            createUI() {
+                const container = document.getElementById('bodies-ui');
+                const details = document.createElement('details');
+                details.className = 'panel';
+                
+                const summary = document.createElement('summary');
+                summary.style.color = this.color;
+                summary.style.display = 'flex';
+                summary.style.alignItems = 'center';
+                summary.style.justifyContent = 'space-between';
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.innerText = `Body ${this.id + 1}`;
+                
+                const indicator = document.createElement('div');
+                indicator.id = `gain-indicator-${this.id}`;
+                indicator.style.width = '12px';
+                indicator.style.height = '12px';
+                indicator.style.borderRadius = '2px';
+                indicator.style.backgroundColor = 'hsl(120, 100%, 50%)';
+                indicator.style.border = '1px solid #333';
+                indicator.title = 'Gain Level (Proximity)';
+                
+                summary.appendChild(titleSpan);
+                summary.appendChild(indicator);
+                details.appendChild(summary);
+
+                const controls = document.createElement('div');
+                controls.className = 'controls';
+                
+                const typeSelect = document.createElement('select');
+                ['synth', 'kick', 'snare', 'hat'].forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t;
+                    opt.innerText = t.toUpperCase();
+                    if (t === this.type) opt.selected = true;
+                    typeSelect.appendChild(opt);
+                });
+                controls.appendChild(typeSelect);
+                
+                details.appendChild(controls);
+
+                const grid = document.createElement('div');
+                grid.className = 'grid';
+                
+                this.pitchSelects = [];
+                
+                const noteData = [
+                    { name: 'C2', freq: 65.41 }, { name: 'D2', freq: 73.42 }, { name: 'E2', freq: 82.41 },
+                    { name: 'F2', freq: 87.31 }, { name: 'G2', freq: 98.00 }, { name: 'A2', freq: 110.00 },
+                    { name: 'B2', freq: 123.47 }, { name: 'C3', freq: 130.81 }, { name: 'D3', freq: 146.83 },
+                    { name: 'E3', freq: 164.81 }, { name: 'F3', freq: 174.61 }, { name: 'G3', freq: 196.00 },
+                    { name: 'A3', freq: 220.00 }, { name: 'B3', freq: 246.94 }, { name: 'C4', freq: 261.63 },
+                    { name: 'D4', freq: 293.66 }, { name: 'E4', freq: 329.63 }, { name: 'F4', freq: 349.23 },
+                    { name: 'G4', freq: 392.00 }, { name: 'A4', freq: 440.00 }, { name: 'B4', freq: 493.88 }
+                ];
+
+                for (let i = 0; i < 16; i++) {
+                    const stepCol = document.createElement('div');
+                    stepCol.className = 'step-col';
+                    
+                    const step = document.createElement('div');
+                    step.className = `step ${this.sequence[i] ? 'active' : ''}`;
+                    step.id = `step-${this.id}-${i}`;
+                    step.onclick = () => {
+                        this.sequence[i] = !this.sequence[i];
+                        step.classList.toggle('active');
+                    };
+                    stepCol.appendChild(step);
+                    
+                    const pitchSelect = document.createElement('select');
+                    pitchSelect.className = 'step-pitch';
+                    pitchSelect.style.display = this.type === 'synth' ? 'block' : 'none';
+                    
+                    noteData.forEach(n => {
+                        const opt = document.createElement('option');
+                        opt.value = n.freq;
+                        opt.innerText = n.name;
+                        if (Math.abs(n.freq - this.pitches[i]) < 1) opt.selected = true;
+                        pitchSelect.appendChild(opt);
+                    });
+
+                    pitchSelect.onchange = (e) => {
+                        this.pitches[i] = parseFloat(e.target.value);
+                    };
+                    
+                    this.pitchSelects.push(pitchSelect);
+                    stepCol.appendChild(pitchSelect);
+                    grid.appendChild(stepCol);
+                }
+                
+                typeSelect.onchange = (e) => {
+                    this.type = e.target.value;
+                    this.pitchSelects.forEach(sel => {
+                        sel.style.display = this.type === 'synth' ? 'block' : 'none';
+                    });
+                };
+                
+                details.appendChild(grid);
+                container.appendChild(details);
+            }
+
+            updatePhysics(bodies, isPaused) {
+                let fx = 0;
+                let fy = 0;
+                let proximityScore = 0;
+
+                bodies.forEach(other => {
+                    if (other === this) return;
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const distSq = dx*dx + dy*dy;
+                    const dist = Math.sqrt(distSq);
+                    
+                    // Inverse square law for audio intensity
+                    // softening of 10000 means at dist=0, intensity is 1.
+                    // at dist=100, distSq=10000, intensity is 0.5.
+                    const audioSoftening = 10000;
+                    proximityScore += audioSoftening / (distSq + audioSoftening);
+
+                    if (dist > 0 && !this.isDragged && !isPaused) {
+                        // Gravity with softening to prevent singularity
+                        const softening = 200;
+                        const force = (G * this.mass * other.mass) / (distSq + softening);
+                        fx += force * (dx / dist);
+                        fy += force * (dy / dist);
+                    }
+                });
+
+                if (!this.isDragged && !isPaused) {
+                    this.vx += fx / this.mass;
+                    this.vy += fy / this.mass;
+                    
+                    // Damping - reduced to allow longer orbits
+                    this.vx *= 0.998;
+                    this.vy *= 0.998;
+
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Bounds checking (wrap around instead of bounce)
+                    if (this.x < 0) { this.x = width; }
+                    if (this.x > width) { this.x = 0; }
+                    if (this.y < 0) { this.y = height; }
+                    if (this.y > height) { this.y = 0; }
+                }
+
+                // Map physics to audio params
+                // Volume: isolated = faint, clustered = loud
+                // Use inverse square law for more natural dropoff
+                const maxIntensity = bodies.length > 1 ? bodies.length - 1 : 1;
+                const normalizedIntensity = proximityScore / maxIntensity;
+                
+                // Base volume of 0.05, plus up to 0.95 based on proximity
+                let targetVol = 0.05 + (normalizedIntensity * 0.95);
+                this.currentVolume = Math.max(0.05, Math.min(1.0, targetVol));
+                
+                // Update UI indicator
+                const indicator = document.getElementById(`gain-indicator-${this.id}`);
+                if (indicator) {
+                    // Map volume 0.05 - 1.0 to green (120) -> yellow -> red (0)
+                    const hue = 120 - ((this.currentVolume - 0.05) / 0.95) * 120;
+                    indicator.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
+                }
+
+                const mapValue = (param) => {
+                    const conf = universe[param];
+                    if (conf.map === 'none') return conf.min;
+                    let normalized = 0;
+                    if (conf.map === 'x') normalized = this.x / width;
+                    if (conf.map === 'y') normalized = this.y / height;
+                    normalized = Math.max(0, Math.min(1, normalized));
+                    return conf.min + normalized * (conf.max - conf.min);
+                };
+
+                this.currentCutoff = mapValue('cutoff');
+                this.currentRes = mapValue('res');
+                this.currentFuzz = mapValue('fuzz');
+                this.currentReverb = mapValue('reverb');
+                this.currentPhaser = mapValue('phaser');
+            }
+
+            draw(ctx) {
+                // Decay pulse
+                this.pulse *= 0.85;
+
+                // Draw expanding pulse ring
+                if (this.pulse > 0.01) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.mass + (1 - this.pulse) * 40, 0, Math.PI * 2);
+                    ctx.strokeStyle = this.color;
+                    ctx.globalAlpha = this.pulse;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+
+                // Draw main body (slightly larger based on pulse)
+                const currentRadius = this.mass + (this.pulse * 8);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                
+                // Glow based on volume and pulse
+                ctx.shadowBlur = (this.currentVolume * 30) + (this.pulse * 20);
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            playNote(time, seqSource = this, stepIndex = 0) {
+                if (!audioCtx) return;
+
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                const filter = audioCtx.createBiquadFilter();
+                
+                filter.type = 'lowpass';
+                filter.frequency.value = this.currentCutoff;
+                filter.Q.value = this.currentRes;
+
+                // Fuzz (WaveShaper)
+                const fuzzNode = audioCtx.createWaveShaper();
+                fuzzNode.curve = sharedFuzzCurve;
+                fuzzNode.oversample = '4x';
+
+                const fuzzDry = audioCtx.createGain();
+                const fuzzWet = audioCtx.createGain();
+                fuzzDry.gain.value = 1.0 - this.currentFuzz;
+                fuzzWet.gain.value = this.currentFuzz;
+
+                // Phaser (Allpass)
+                const phaserNode = audioCtx.createBiquadFilter();
+                phaserNode.type = 'allpass';
+                phaserNode.frequency.value = 1000;
+                
+                const phaserLFO = audioCtx.createOscillator();
+                phaserLFO.type = 'sine';
+                phaserLFO.frequency.value = 0.5; // 0.5 Hz sweep
+                const phaserLFOGain = audioCtx.createGain();
+                phaserLFOGain.gain.value = 800; // Sweep depth
+                phaserLFO.connect(phaserLFOGain);
+                phaserLFOGain.connect(phaserNode.frequency);
+                phaserLFO.start(time);
+                phaserLFO.stop(time + 1.0);
+
+                const phaserDry = audioCtx.createGain();
+                const phaserWet = audioCtx.createGain();
+                phaserDry.gain.value = 1.0 - this.currentPhaser;
+                phaserWet.gain.value = this.currentPhaser;
+
+                // Reverb Send
+                const reverbDry = audioCtx.createGain();
+                const reverbWet = audioCtx.createGain();
+                reverbDry.gain.value = 1.0 - this.currentReverb;
+                reverbWet.gain.value = this.currentReverb;
+
+                const fuzzOut = audioCtx.createGain();
+                const phaserOut = audioCtx.createGain();
+
+                // Routing
+                osc.connect(filter);
+                filter.connect(gainNode);
+
+                gainNode.connect(fuzzDry);
+                gainNode.connect(fuzzWet);
+                fuzzWet.connect(fuzzNode);
+                fuzzNode.connect(fuzzOut);
+                fuzzDry.connect(fuzzOut);
+
+                fuzzOut.connect(phaserDry);
+                fuzzOut.connect(phaserWet);
+                phaserWet.connect(phaserNode);
+                phaserNode.connect(phaserOut);
+                phaserDry.connect(phaserOut);
+
+                phaserOut.connect(reverbDry);
+                phaserOut.connect(reverbWet);
+
+                reverbDry.connect(masterGain);
+                reverbWet.connect(masterReverb);
+
+                // Base volume from proximity
+                const vol = this.currentVolume * 0.5;
+
+                if (this.type === 'synth') {
+                    osc.type = 'sawtooth';
+                    
+                    let pitchToPlay = this.pitches[stepIndex];
+                    if (seqSource && seqSource !== this) {
+                        if (seqSource.type === 'synth') {
+                            pitchToPlay = seqSource.pitches[stepIndex];
+                        } else {
+                            pitchToPlay = this.lastPlayedPitch || this.pitches[stepIndex];
+                        }
+                    }
+                    this.lastPlayedPitch = pitchToPlay;
+                    
+                    osc.frequency.setValueAtTime(pitchToPlay, time);
+                    
+                    gainNode.gain.setValueAtTime(0, time);
+                    gainNode.gain.linearRampToValueAtTime(vol, time + 0.05);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+                    
+                    osc.start(time);
+                    osc.stop(time + 0.3);
+                } 
+                else if (this.type === 'kick') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150, time);
+                    osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+                    
+                    gainNode.gain.setValueAtTime(vol, time);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+                    
+                    osc.start(time);
+                    osc.stop(time + 0.5);
+                }
+                else if (this.type === 'snare' || this.type === 'hat') {
+                    // Noise burst
+                    const bufferSize = audioCtx.sampleRate * 0.5;
+                    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        data[i] = Math.random() * 2 - 1;
+                    }
+                    const noise = audioCtx.createBufferSource();
+                    noise.buffer = buffer;
+                    
+                    const noiseFilter = audioCtx.createBiquadFilter();
+                    noiseFilter.type = this.type === 'hat' ? 'highpass' : 'bandpass';
+                    noiseFilter.frequency.value = this.type === 'hat' ? 5000 : 1000;
+                    
+                    noise.connect(noiseFilter);
+                    noiseFilter.connect(gainNode);
+                    
+                    const dur = this.type === 'hat' ? 0.05 : 0.2;
+                    gainNode.gain.setValueAtTime(vol, time);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, time + dur);
+                    
+                    noise.start(time);
+                    noise.stop(time + dur);
+                    
+                    // Snare has a small tonal component
+                    if (this.type === 'snare') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(250, time);
+                        gainNode.gain.setValueAtTime(vol * 0.5, time);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+                        osc.start(time);
+                        osc.stop(time + 0.1);
+                    } else {
+                        osc.disconnect(); // Don't use osc for hat
+                    }
+                }
+
+                // Trigger visual pulse
+                const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
+                setTimeout(() => {
+                    this.pulse = 1.0;
+                }, delay);
+            }
+        }
+
+        const bodies = [
+            new Body(0, 300, 300, 15, '#ff3366'),
+            new Body(1, 500, 400, 12, '#33ccff'),
+            new Body(2, 400, 200, 10, '#ccff33')
+        ];
+
+        function draw() {
+            // Fade effect for trails
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Physics step
+            bodies.forEach(b => b.updatePhysics(bodies, !isPlaying || !physicsRunning));
+
+            // Draw connections
+            ctx.lineWidth = 1;
+            for (let i = 0; i < bodies.length; i++) {
+                for (let j = i + 1; j < bodies.length; j++) {
+                    const b1 = bodies[i];
+                    const b2 = bodies[j];
+                    const dist = Math.sqrt(Math.pow(b1.x - b2.x, 2) + Math.pow(b1.y - b2.y, 2));
+                    
+                    if (dist < SYNC_DIST) {
+                        const intensity = 1 - dist/SYNC_DIST;
+                        
+                        // Create gradient for the line
+                        const grad = ctx.createLinearGradient(b1.x, b1.y, b2.x, b2.y);
+                        grad.addColorStop(0, b1.color);
+                        grad.addColorStop(1, b2.color);
+                        
+                        ctx.strokeStyle = grad;
+                        ctx.globalAlpha = intensity;
+                        ctx.lineWidth = 2;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(b1.x, b1.y);
+                        ctx.lineTo(b2.x, b2.y);
+                        ctx.stroke();
+                        
+                        // Add a little "quantum" particle effect along the line
+                        const time = Date.now() / 500;
+                        const offset = (time + i + j) % 1; // Moving dot
+                        const px = b1.x + (b2.x - b1.x) * offset;
+                        const py = b1.y + (b2.y - b1.y) * offset;
+                        
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(px, py, 2 + intensity * 2, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.globalAlpha = 1.0;
+                    }
+                }
+            }
+
+            // Draw bodies
+            bodies.forEach(b => b.draw(ctx));
+
+            requestAnimationFrame(draw);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            initAudio();
+        });
+
+        // Start the render loop immediately so bodies can be placed before simulation
+        requestAnimationFrame(draw);
+
+    </script>
+</body>
+</html>
