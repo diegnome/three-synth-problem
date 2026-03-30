@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>N-Body Sequencer</title>
     <style>
         body {
@@ -12,10 +12,13 @@
             color: #eee;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
+            flex-direction: row;
+            height: 100vh;
+            width: 100vw;
         }
         #ui-container {
             width: 350px;
-            height: 100vh;
+            height: 100%;
             overflow-y: auto;
             background: #111;
             border-right: 1px solid #333;
@@ -26,7 +29,9 @@
         canvas {
             display: block;
             flex-grow: 1;
-            height: 100vh;
+            height: 100%;
+            width: calc(100% - 350px);
+            touch-action: none;
         }
         .panel {
             background: #1a1a1a;
@@ -58,6 +63,7 @@
             background: #222;
             border: 1px solid #444;
             cursor: pointer;
+            box-sizing: border-box;
         }
         .step.active { background: #4CAF50; }
         .step.current { border-color: #fff; }
@@ -92,30 +98,133 @@
             padding: 3px;
             font-family: inherit;
         }
-        .universe-controls {
+        .effects-grid {
             display: grid;
-            grid-template-columns: auto 1fr auto 1fr auto 1fr;
-            gap: 5px 10px;
-            font-size: 12px;
-            align-items: center;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
         }
-        .universe-controls h4 {
-            grid-column: span 6;
-            margin: 10px 0 5px 0;
-            border-bottom: 1px solid #444;
-            padding-bottom: 2px;
+        .effect-block {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .effect-title {
             color: #aaa;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 2px;
         }
-        .universe-controls label {
-            text-align: right;
-            color: #ccc;
+        .effect-controls {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            justify-content: space-between;
         }
-        .universe-controls select, .universe-controls input {
-            width: 100%;
-            box-sizing: border-box;
+        .control-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            width: 32px;
+        }
+        .src-box {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #444;
             background: #222;
             color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+            box-sizing: border-box;
+        }
+        .src-box:hover {
+            background: #333;
+        }
+        .knob {
+            width: 30px;
+            height: 30px;
             border: 1px solid #444;
+            background: #222;
+            border-radius: 50%;
+            position: relative;
+            cursor: ns-resize;
+            box-sizing: border-box;
+            touch-action: none;
+        }
+        .knob-dial {
+            position: absolute;
+            top: 3px;
+            left: 50%;
+            width: 2px;
+            height: 12px;
+            background: #fff;
+            transform-origin: 50% 12px;
+            margin-left: -1px;
+        }
+        .control-val {
+            color: #ccc;
+            font-size: 9px;
+            font-family: inherit;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .control-label {
+            color: #888;
+            font-size: 9px;
+        }
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            #ui-container {
+                width: 100%;
+                height: 45%;
+                border-right: none;
+                border-top: 1px solid #333;
+                order: 2;
+                padding: 10px;
+            }
+            canvas {
+                width: 100%;
+                height: 55%;
+                order: 1;
+            }
+            .step {
+                height: 30px; /* Taller for touch */
+                width: 100%;
+            }
+            .grid {
+                gap: 1px;
+                overflow-x: auto;
+                padding-bottom: 5px;
+            }
+            .step-col {
+                min-width: 25px;
+            }
+            .step-pitch {
+                font-size: 10px;
+                padding: 4px 0;
+            }
+            button, select, input[type="range"] {
+                padding: 8px;
+                font-size: 14px;
+            }
+            .effects-grid {
+                /* Inherits grid layout, auto-fit will naturally adjust columns */
+            }
         }
     </style>
 </head>
@@ -136,58 +245,25 @@
                 <label style="font-size: 12px; color: #ccc;">Master Volume</label>
                 <input type="range" id="master-vol" min="0" max="1" step="0.01" value="0.5" style="flex-grow: 1;">
             </div>
-            <div class="universe-controls">
-                <h4>Filter Cutoff</h4>
-                <label>Map</label>
-                <select id="map-cutoff">
-                    <option value="none">None</option>
-                    <option value="x" selected>X</option>
-                    <option value="y">Y</option>
-                </select>
-                <label>Min</label><input type="range" id="min-cutoff" min="20" max="10000" value="100">
-                <label>Max</label><input type="range" id="max-cutoff" min="20" max="10000" value="5000">
-
-                <h4>Resonance</h4>
-                <label>Map</label>
-                <select id="map-res">
-                    <option value="none" selected>None</option>
-                    <option value="x">X</option>
-                    <option value="y">Y</option>
-                </select>
-                <label>Min</label><input type="range" id="min-res" min="0" max="30" value="1">
-                <label>Max</label><input type="range" id="max-res" min="0" max="30" value="10">
-
-                <h4>Fuzz / Clipping</h4>
-                <label>Map</label>
-                <select id="map-fuzz">
-                    <option value="none">None</option>
-                    <option value="x">X</option>
-                    <option value="y" selected>Y</option>
-                </select>
-                <label>Min</label><input type="range" id="min-fuzz" min="0" max="1" step="0.01" value="0">
-                <label>Max</label><input type="range" id="max-fuzz" min="0" max="1" step="0.01" value="0.8">
-
-                <h4>Reverb</h4>
-                <label>Map</label>
-                <select id="map-reverb">
-                    <option value="none">None</option>
-                    <option value="x">X</option>
-                    <option value="y" selected>Y</option>
-                </select>
-                <label>Min</label><input type="range" id="min-reverb" min="0" max="1" step="0.01" value="0">
-                <label>Max</label><input type="range" id="max-reverb" min="0" max="1" step="0.01" value="0.8">
-
-                <h4>Phaser</h4>
-                <label>Map</label>
-                <select id="map-phaser">
-                    <option value="none" selected>None</option>
-                    <option value="x">X</option>
-                    <option value="y">Y</option>
-                </select>
-                <label>Min</label><input type="range" id="min-phaser" min="0" max="1" step="0.01" value="0">
-                <label>Max</label><input type="range" id="max-phaser" min="0" max="1" step="0.01" value="0.8">
+            <div id="effects-grid" class="effects-grid">
+                <!-- Generated by JS -->
             </div>
         </details>
+
+        <div class="panel" style="margin-bottom: 10px;">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <select id="new-body-preset" style="flex-grow: 1;">
+                    <option value="lead synth">Lead Synth</option>
+                    <option value="bass synth">Bass Synth</option>
+                    <option value="pads">Pads</option>
+                    <option value="vox">Vox</option>
+                    <option value="kick">Kick</option>
+                    <option value="snare">Snare</option>
+                    <option value="hat">Hat</option>
+                </select>
+                <button id="add-body-btn">Add Body</button>
+            </div>
+        </div>
 
         <div id="bodies-ui"></div>
     </div>
@@ -202,8 +278,9 @@
         let audioMuted = false;
 
         function resize() {
-            width = canvas.width = window.innerWidth - 350;
-            height = canvas.height = window.innerHeight;
+            const rect = canvas.getBoundingClientRect();
+            width = canvas.width = rect.width;
+            height = canvas.height = rect.height;
         }
         window.addEventListener('resize', resize);
         resize();
@@ -214,15 +291,18 @@
         let lastMouseX = 0;
         let lastMouseY = 0;
 
-        canvas.addEventListener('mousedown', (e) => {
+        function handlePointerDown(e) {
+            if (e.type === 'touchstart') e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const mx = clientX - rect.left;
+            const my = clientY - rect.top;
             
             for (let i = bodies.length - 1; i >= 0; i--) {
                 const b = bodies[i];
                 const dist = Math.sqrt((b.x - mx)**2 + (b.y - my)**2);
-                if (dist < b.mass + 15) {
+                if (dist < b.mass + 25) { // increased hit area for touch
                     draggedBody = b;
                     b.isDragged = true;
                     mouseX = mx;
@@ -232,36 +312,41 @@
                     break;
                 }
             }
-        });
+        }
 
-        canvas.addEventListener('mousemove', (e) => {
+        function handlePointerMove(e) {
+            if (!draggedBody) return;
+            e.preventDefault(); // Prevent scrolling while dragging
             const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             lastMouseX = mouseX;
             lastMouseY = mouseY;
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
+            mouseX = clientX - rect.left;
+            mouseY = clientY - rect.top;
             
-            if (draggedBody) {
-                draggedBody.x = mouseX;
-                draggedBody.y = mouseY;
-            }
-        });
+            draggedBody.x = mouseX;
+            draggedBody.y = mouseY;
+        }
 
-        canvas.addEventListener('mouseup', () => {
+        function handlePointerUp(e) {
             if (draggedBody) {
                 draggedBody.vx += (mouseX - lastMouseX) * 0.05;
                 draggedBody.vy += (mouseY - lastMouseY) * 0.05;
                 draggedBody.isDragged = false;
                 draggedBody = null;
             }
-        });
-        
-        canvas.addEventListener('mouseleave', () => {
-            if (draggedBody) {
-                draggedBody.isDragged = false;
-                draggedBody = null;
-            }
-        });
+        }
+
+        canvas.addEventListener('mousedown', handlePointerDown);
+        canvas.addEventListener('mousemove', handlePointerMove);
+        canvas.addEventListener('mouseup', handlePointerUp);
+        canvas.addEventListener('mouseleave', handlePointerUp);
+
+        canvas.addEventListener('touchstart', handlePointerDown, {passive: false});
+        canvas.addEventListener('touchmove', handlePointerMove, {passive: false});
+        canvas.addEventListener('touchend', handlePointerUp);
+        canvas.addEventListener('touchcancel', handlePointerUp);
 
         const G = 0.5; // Gravity constant
         const SYNC_DIST = 100; // Distance for quantum entanglement
@@ -272,27 +357,192 @@
         let masterReverb;
         let isPlaying = false;
         let sharedFuzzCurve;
+        let noiseBuffer;
+        let bodyIdCounter = 3; // Start at 3 since we have 3 initial bodies
+
+        // --- UI Listeners ---
+        document.getElementById('master-vol').addEventListener('input', (e) => {
+            if (masterGain && !audioMuted) masterGain.gain.value = parseFloat(e.target.value);
+        });
+        document.getElementById('toggle-physics-btn').addEventListener('click', (e) => {
+            physicsRunning = !physicsRunning;
+            e.target.innerText = physicsRunning ? "Pause Physics" : "Resume Physics";
+        });
+        document.getElementById('toggle-audio-btn').addEventListener('click', (e) => {
+            audioMuted = !audioMuted;
+            e.target.innerText = audioMuted ? "Unmute Audio" : "Mute Audio";
+            if (masterGain) {
+                masterGain.gain.value = audioMuted ? 0 : parseFloat(document.getElementById('master-vol').value);
+            }
+        });
+        document.getElementById('add-body-btn').addEventListener('click', () => {
+            const preset = document.getElementById('new-body-preset').value;
+            const id = bodyIdCounter++;
+            const hue = Math.floor(Math.random() * 360);
+            const color = `hsl(${hue}, 80%, 60%)`;
+            const mass = 15 + Math.random() * 15;
+            const x = width / 2 + (Math.random() - 0.5) * 100;
+            const y = height / 2 + (Math.random() - 0.5) * 100;
+            
+            const body = new Body(id, x, y, mass, color, preset);
+            bodies.push(body);
+        });
 
         const universe = {
-            cutoff: { map: 'x', min: 100, max: 5000 },
-            res: { map: 'none', min: 1, max: 10 },
-            fuzz: { map: 'y', min: 0, max: 0.8 },
-            reverb: { map: 'y', min: 0, max: 0.8 },
-            phaser: { map: 'none', min: 0, max: 0.8 }
+            cutoff: { map: 'x', min: 100, max: 5000, isLog: true },
+            res: { map: 'none', min: 1, max: 10, isLog: false },
+            fuzz: { map: 'y', min: 0, max: 0.8, isLog: false },
+            reverb: { map: 'y', min: 0, max: 0.8, isLog: false },
+            phaser: { map: 'none', min: 0, max: 0.8, isLog: false },
+            pan: { map: 'x', min: -1, max: 1, isLog: false }
         };
 
-        function updateUniverseState() {
-            ['cutoff', 'res', 'fuzz', 'reverb', 'phaser'].forEach(param => {
-                const mapEl = document.getElementById(`map-${param}`);
-                const minEl = document.getElementById(`min-${param}`);
-                const maxEl = document.getElementById(`max-${param}`);
-                if (mapEl && minEl && maxEl) {
-                    universe[param].map = mapEl.value;
-                    universe[param].min = parseFloat(minEl.value);
-                    universe[param].max = parseFloat(maxEl.value);
-                }
+        function createEffectsUI() {
+            const container = document.getElementById('effects-grid');
+            container.innerHTML = '';
+            
+            const maps = ['none', 'x', 'y'];
+
+            Object.keys(universe).forEach(param => {
+                const conf = universe[param];
+                
+                const block = document.createElement('div');
+                block.className = 'effect-block';
+                
+                const title = document.createElement('div');
+                title.className = 'effect-title';
+                title.innerText = param;
+                block.appendChild(title);
+                
+                const controls = document.createElement('div');
+                controls.className = 'effect-controls';
+                
+                // SRC
+                const srcCol = document.createElement('div');
+                srcCol.className = 'control-col';
+                const srcBox = document.createElement('div');
+                srcBox.className = 'src-box';
+                srcBox.innerText = conf.map === 'none' ? '-' : conf.map.toUpperCase();
+                srcBox.onclick = () => {
+                    let idx = maps.indexOf(conf.map);
+                    idx = (idx + 1) % maps.length;
+                    conf.map = maps[idx];
+                    srcBox.innerText = conf.map === 'none' ? '-' : conf.map.toUpperCase();
+                };
+                const srcLabel = document.createElement('div');
+                srcLabel.className = 'control-label';
+                srcLabel.innerText = 'src';
+                srcCol.appendChild(srcBox);
+                srcCol.appendChild(srcLabel);
+                controls.appendChild(srcCol);
+                
+                // MIN / MAX Knobs
+                ['min', 'max'].forEach(type => {
+                    const col = document.createElement('div');
+                    col.className = 'control-col';
+                    
+                    const knob = document.createElement('div');
+                    knob.className = 'knob';
+                    const dial = document.createElement('div');
+                    dial.className = 'knob-dial';
+                    knob.appendChild(dial);
+                    
+                    const valDisplay = document.createElement('div');
+                    valDisplay.className = 'control-val';
+                    
+                    const label = document.createElement('div');
+                    label.className = 'control-label';
+                    label.innerText = type;
+                    
+                    col.appendChild(knob);
+                    col.appendChild(valDisplay);
+                    col.appendChild(label);
+                    controls.appendChild(col);
+                    
+                    // Knob Logic
+                    let isDragging = false;
+                    let startY = 0;
+                    let startVal = 0;
+                    
+                    // define min/max limits for the parameter
+                    let limitMin = 0;
+                    let limitMax = 1;
+                    if (param === 'cutoff') { limitMin = 20; limitMax = 10000; }
+                    if (param === 'res') { limitMin = 0; limitMax = 30; }
+                    if (param === 'fuzz' || param === 'reverb' || param === 'phaser') { limitMin = 0; limitMax = 1; }
+                    if (param === 'pan') { limitMin = -1; limitMax = 1; }
+                    
+                    function updateKnob(newVal) {
+                        if (newVal !== undefined) {
+                            newVal = Math.max(limitMin, Math.min(limitMax, newVal));
+                            conf[type] = newVal;
+                        }
+                        
+                        let pct;
+                        if (conf.isLog) {
+                            pct = (Math.log(conf[type]) - Math.log(limitMin)) / (Math.log(limitMax) - Math.log(limitMin));
+                        } else {
+                            pct = (conf[type] - limitMin) / (limitMax - limitMin);
+                        }
+                        
+                        const angle = -135 + (pct * 270);
+                        dial.style.transform = `rotate(${angle}deg)`;
+                        
+                        let displayVal = conf[type];
+                        if (limitMax > 100) displayVal = Math.round(displayVal);
+                        else displayVal = displayVal.toFixed(2);
+                        valDisplay.innerText = displayVal;
+                    }
+                    
+                    updateKnob();
+                    
+                    function onPointerDown(e) {
+                        isDragging = true;
+                        startY = e.touches ? e.touches[0].clientY : e.clientY;
+                        startVal = conf[type];
+                        e.preventDefault();
+                    }
+                    
+                    function onPointerMove(e) {
+                        if (!isDragging) return;
+                        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                        const deltaY = startY - clientY; // Up is positive
+                        
+                        // Sensitivity
+                        const range = limitMax - limitMin;
+                        let deltaVal;
+                        if (conf.isLog) {
+                            // Exponential change
+                            const logRange = Math.log(limitMax) - Math.log(limitMin);
+                            const currentLog = Math.log(startVal);
+                            const newLog = currentLog + (deltaY * 0.01 * logRange);
+                            deltaVal = Math.exp(newLog) - startVal;
+                        } else {
+                            deltaVal = deltaY * 0.01 * range;
+                        }
+                        
+                        updateKnob(startVal + deltaVal);
+                    }
+                    
+                    function onPointerUp() {
+                        isDragging = false;
+                    }
+                    
+                    knob.addEventListener('mousedown', onPointerDown);
+                    knob.addEventListener('touchstart', onPointerDown, {passive: false});
+                    
+                    window.addEventListener('mousemove', onPointerMove);
+                    window.addEventListener('touchmove', onPointerMove, {passive: false});
+                    
+                    window.addEventListener('mouseup', onPointerUp);
+                    window.addEventListener('touchend', onPointerUp);
+                });
+                
+                block.appendChild(controls);
+                container.appendChild(block);
             });
         }
+        createEffectsUI();
 
         // Sequencer timing
         let currentStep = 0;
@@ -338,30 +588,18 @@
             masterReverb = createReverb();
             sharedFuzzCurve = createDistortionCurve(100);
             
+            // Noise Buffer for Snare/Hat
+            const bufferSize = audioCtx.sampleRate * 2; // 2 seconds
+            noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+
             // Routing: Nodes -> Master -> Destination
             masterReverb.connect(masterGain);
             masterGain.connect(audioCtx.destination);
-            
-            // Listeners for UI
-            document.querySelectorAll('.universe-controls input, .universe-controls select').forEach(el => {
-                el.addEventListener('input', updateUniverseState);
-            });
-            document.getElementById('master-vol').addEventListener('input', (e) => {
-                if (masterGain && !audioMuted) masterGain.gain.value = parseFloat(e.target.value);
-            });
-            document.getElementById('toggle-physics-btn').addEventListener('click', (e) => {
-                physicsRunning = !physicsRunning;
-                e.target.innerText = physicsRunning ? "Pause Physics" : "Resume Physics";
-            });
-            document.getElementById('toggle-audio-btn').addEventListener('click', (e) => {
-                audioMuted = !audioMuted;
-                e.target.innerText = audioMuted ? "Unmute Audio" : "Mute Audio";
-                if (masterGain) {
-                    masterGain.gain.value = audioMuted ? 0 : parseFloat(document.getElementById('master-vol').value);
-                }
-            });
-            updateUniverseState();
-            
+
             isPlaying = true;
             nextNoteTime = audioCtx.currentTime + 0.05;
             scheduler();
@@ -407,8 +645,8 @@
                     el.style.boxShadow = '';
                     el.style.borderColor = '';
                 });
-                bodies.forEach((body, idx) => {
-                    const stepEl = document.getElementById(`step-${idx}-${stepNumber}`);
+                bodies.forEach((body) => {
+                    const stepEl = document.getElementById(`step-${body.id}-${stepNumber}`);
                     if (stepEl) {
                         stepEl.classList.add('current');
                         const seqSource = playMap.get(body);
@@ -440,7 +678,7 @@
 
         // --- Body Class ---
         class Body {
-            constructor(id, x, y, mass, color) {
+            constructor(id, x, y, mass, color, preset) {
                 this.id = id;
                 this.x = x;
                 this.y = y;
@@ -448,15 +686,21 @@
                 this.vy = (Math.random() - 0.5) * 2;
                 this.mass = mass;
                 this.color = color;
+                this.preset = preset;
                 this.isDragged = false;
                 this.pulse = 0;
                 this.sequence = Array(16).fill(false);
                 // Randomize some steps initially
                 for(let i=0; i<16; i++) if(Math.random() > 0.7) this.sequence[i] = true;
-                this.type = id === 0 ? 'kick' : (id === 1 ? 'snare' : 'synth');
                 
                 const notes = [65.41, 73.42, 82.41, 87.31, 98.00, 110.00, 123.47, 130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88];
-                this.pitch = notes[(id * 2) % notes.length];
+                let baseNoteIdx = 10; // mid
+                if (preset === 'bass synth') baseNoteIdx = 2;
+                if (preset === 'lead synth') baseNoteIdx = 14;
+                if (preset === 'pads') baseNoteIdx = 10;
+                if (preset === 'vox') baseNoteIdx = 12;
+
+                this.pitch = notes[baseNoteIdx];
                 this.pitches = Array(16).fill(this.pitch);
                 this.lastPlayedPitch = this.pitch;
                 
@@ -467,6 +711,7 @@
                 this.currentFuzz = 0;
                 this.currentReverb = 0;
                 this.currentPhaser = 0;
+                this.currentPan = 0;
                 
                 this.createUI();
             }
@@ -483,7 +728,7 @@
                 summary.style.justifyContent = 'space-between';
                 
                 const titleSpan = document.createElement('span');
-                titleSpan.innerText = `Body ${this.id + 1}`;
+                titleSpan.innerText = `Body ${this.id + 1} (${this.preset})`;
                 
                 const indicator = document.createElement('div');
                 indicator.id = `gain-indicator-${this.id}`;
@@ -500,16 +745,20 @@
 
                 const controls = document.createElement('div');
                 controls.className = 'controls';
+                controls.style.justifyContent = 'flex-end';
                 
-                const typeSelect = document.createElement('select');
-                ['synth', 'kick', 'snare', 'hat'].forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t;
-                    opt.innerText = t.toUpperCase();
-                    if (t === this.type) opt.selected = true;
-                    typeSelect.appendChild(opt);
-                });
-                controls.appendChild(typeSelect);
+                const removeBtn = document.createElement('button');
+                removeBtn.innerText = 'Remove';
+                removeBtn.style.background = '#552222';
+                removeBtn.style.color = '#fff';
+                removeBtn.style.border = 'none';
+                removeBtn.style.padding = '4px 8px';
+                removeBtn.style.cursor = 'pointer';
+                removeBtn.onclick = () => {
+                    bodies = bodies.filter(b => b !== this);
+                    details.remove();
+                };
+                controls.appendChild(removeBtn);
                 
                 details.appendChild(controls);
 
@@ -528,6 +777,8 @@
                     { name: 'G4', freq: 392.00 }, { name: 'A4', freq: 440.00 }, { name: 'B4', freq: 493.88 }
                 ];
 
+                const isDrum = ['kick', 'snare', 'hat'].includes(this.preset);
+
                 for (let i = 0; i < 16; i++) {
                     const stepCol = document.createElement('div');
                     stepCol.className = 'step-col';
@@ -541,33 +792,28 @@
                     };
                     stepCol.appendChild(step);
                     
-                    const pitchSelect = document.createElement('select');
-                    pitchSelect.className = 'step-pitch';
-                    pitchSelect.style.display = this.type === 'synth' ? 'block' : 'none';
-                    
-                    noteData.forEach(n => {
-                        const opt = document.createElement('option');
-                        opt.value = n.freq;
-                        opt.innerText = n.name;
-                        if (Math.abs(n.freq - this.pitches[i]) < 1) opt.selected = true;
-                        pitchSelect.appendChild(opt);
-                    });
+                    if (!isDrum) {
+                        const pitchSelect = document.createElement('select');
+                        pitchSelect.className = 'step-pitch';
+                        pitchSelect.style.display = 'block';
+                        
+                        noteData.forEach(n => {
+                            const opt = document.createElement('option');
+                            opt.value = n.freq;
+                            opt.innerText = n.name;
+                            if (Math.abs(n.freq - this.pitches[i]) < 1) opt.selected = true;
+                            pitchSelect.appendChild(opt);
+                        });
 
-                    pitchSelect.onchange = (e) => {
-                        this.pitches[i] = parseFloat(e.target.value);
-                    };
-                    
-                    this.pitchSelects.push(pitchSelect);
-                    stepCol.appendChild(pitchSelect);
+                        pitchSelect.onchange = (e) => {
+                            this.pitches[i] = parseFloat(e.target.value);
+                        };
+                        
+                        this.pitchSelects.push(pitchSelect);
+                        stepCol.appendChild(pitchSelect);
+                    }
                     grid.appendChild(stepCol);
                 }
-                
-                typeSelect.onchange = (e) => {
-                    this.type = e.target.value;
-                    this.pitchSelects.forEach(sel => {
-                        sel.style.display = this.type === 'synth' ? 'block' : 'none';
-                    });
-                };
                 
                 details.appendChild(grid);
                 container.appendChild(details);
@@ -621,7 +867,7 @@
                 // Map physics to audio params
                 // Volume: isolated = faint, clustered = loud
                 // Use inverse square law for more natural dropoff
-                const maxIntensity = bodies.length > 1 ? bodies.length - 1 : 1;
+                const maxIntensity = Math.max(1, bodies.length - 1);
                 const normalizedIntensity = proximityScore / maxIntensity;
                 
                 // Base volume of 0.05, plus up to 0.95 based on proximity
@@ -651,6 +897,7 @@
                 this.currentFuzz = mapValue('fuzz');
                 this.currentReverb = mapValue('reverb');
                 this.currentPhaser = mapValue('phaser');
+                this.currentPan = mapValue('pan');
             }
 
             draw(ctx) {
@@ -748,8 +995,20 @@
                 phaserNode.connect(phaserOut);
                 phaserDry.connect(phaserOut);
 
-                phaserOut.connect(reverbDry);
-                phaserOut.connect(reverbWet);
+                // Panning
+                let panner;
+                if (audioCtx.createStereoPanner) {
+                    panner = audioCtx.createStereoPanner();
+                    panner.pan.value = this.currentPan;
+                } else {
+                    panner = audioCtx.createPanner();
+                    panner.panningModel = 'equalpower';
+                    panner.setPosition(this.currentPan, 0, 1 - Math.abs(this.currentPan));
+                }
+                phaserOut.connect(panner);
+
+                panner.connect(reverbDry);
+                panner.connect(reverbWet);
 
                 reverbDry.connect(masterGain);
                 reverbWet.connect(masterReverb);
@@ -757,12 +1016,20 @@
                 // Base volume from proximity
                 const vol = this.currentVolume * 0.5;
 
-                if (this.type === 'synth') {
-                    osc.type = 'sawtooth';
+                if (this.preset === 'lead synth' || this.preset === 'bass synth' || this.preset === 'pads' || this.preset === 'vox') {
+                    if (this.preset === 'lead synth') {
+                        osc.type = 'sawtooth';
+                    } else if (this.preset === 'bass synth') {
+                        osc.type = 'square';
+                    } else if (this.preset === 'pads') {
+                        osc.type = 'sine';
+                    } else if (this.preset === 'vox') {
+                        osc.type = 'triangle';
+                    }
                     
                     let pitchToPlay = this.pitches[stepIndex];
                     if (seqSource && seqSource !== this) {
-                        if (seqSource.type === 'synth') {
+                        if (['lead synth', 'bass synth', 'pads', 'vox'].includes(seqSource.preset)) {
                             pitchToPlay = seqSource.pitches[stepIndex];
                         } else {
                             pitchToPlay = this.lastPlayedPitch || this.pitches[stepIndex];
@@ -773,13 +1040,19 @@
                     osc.frequency.setValueAtTime(pitchToPlay, time);
                     
                     gainNode.gain.setValueAtTime(0, time);
-                    gainNode.gain.linearRampToValueAtTime(vol, time + 0.05);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-                    
-                    osc.start(time);
-                    osc.stop(time + 0.3);
+                    if (this.preset === 'pads') {
+                        gainNode.gain.linearRampToValueAtTime(vol, time + 0.2);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 1.0);
+                        osc.start(time);
+                        osc.stop(time + 1.0);
+                    } else {
+                        gainNode.gain.linearRampToValueAtTime(vol, time + 0.05);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+                        osc.start(time);
+                        osc.stop(time + 0.3);
+                    }
                 } 
-                else if (this.type === 'kick') {
+                else if (this.preset === 'kick') {
                     osc.type = 'sine';
                     osc.frequency.setValueAtTime(150, time);
                     osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
@@ -790,25 +1063,19 @@
                     osc.start(time);
                     osc.stop(time + 0.5);
                 }
-                else if (this.type === 'snare' || this.type === 'hat') {
+                else if (this.preset === 'snare' || this.preset === 'hat') {
                     // Noise burst
-                    const bufferSize = audioCtx.sampleRate * 0.5;
-                    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let i = 0; i < bufferSize; i++) {
-                        data[i] = Math.random() * 2 - 1;
-                    }
                     const noise = audioCtx.createBufferSource();
-                    noise.buffer = buffer;
+                    noise.buffer = noiseBuffer;
                     
                     const noiseFilter = audioCtx.createBiquadFilter();
-                    noiseFilter.type = this.type === 'hat' ? 'highpass' : 'bandpass';
-                    noiseFilter.frequency.value = this.type === 'hat' ? 5000 : 1000;
+                    noiseFilter.type = this.preset === 'hat' ? 'highpass' : 'bandpass';
+                    noiseFilter.frequency.value = this.preset === 'hat' ? 5000 : 1000;
                     
                     noise.connect(noiseFilter);
                     noiseFilter.connect(gainNode);
                     
-                    const dur = this.type === 'hat' ? 0.05 : 0.2;
+                    const dur = this.preset === 'hat' ? 0.05 : 0.2;
                     gainNode.gain.setValueAtTime(vol, time);
                     gainNode.gain.exponentialRampToValueAtTime(0.001, time + dur);
                     
@@ -816,7 +1083,7 @@
                     noise.stop(time + dur);
                     
                     // Snare has a small tonal component
-                    if (this.type === 'snare') {
+                    if (this.preset === 'snare') {
                         osc.type = 'triangle';
                         osc.frequency.setValueAtTime(250, time);
                         gainNode.gain.setValueAtTime(vol * 0.5, time);
@@ -836,10 +1103,10 @@
             }
         }
 
-        const bodies = [
-            new Body(0, 300, 300, 15, '#ff3366'),
-            new Body(1, 500, 400, 12, '#33ccff'),
-            new Body(2, 400, 200, 10, '#ccff33')
+        let bodies = [
+            new Body(0, 300, 300, 15, '#ff3366', 'lead synth'),
+            new Body(1, 500, 400, 12, '#33ccff', 'bass synth'),
+            new Body(2, 400, 200, 10, '#ccff33', 'kick')
         ];
 
         function draw() {
