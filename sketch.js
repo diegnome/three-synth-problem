@@ -1,10 +1,13 @@
 let bodies = [];
-let numBodies = 5;
+let numBodies = 8;
 let blackHole;
 
 const G = 1; // Gravitational Constant. Tweak for stronger attraction.
-const gravityDistMin = 10; // distance below which graviational force does not increase
+const gravityDistMin = 7; // distance below which graviational force does not increase
 const gravityDistMax = 200; // distance above which graviational force does not decrease
+
+let showVelocity = true;
+let showAcceleration = true;
 
 function setup() {
     createCanvas(800, 600);
@@ -36,6 +39,7 @@ function draw() {
     // draw blackHole
     blackHole.display();
 
+    // loop through all bodies
     for (let i = 0; i < bodies.length; i++) {
         // apply basic downward force
         // bodies[i].addForce(createVector(0,0.1));
@@ -44,9 +48,21 @@ function draw() {
         let toBlackHole = blackHole.gravityAttractionForce(bodies[i]);
         bodies[i].addForce(toBlackHole);
 
+        // move and display body
         bodies[i].move();
         bodies[i].checkWrap();
         bodies[i].display();
+
+        // display velocity for debugging
+        if (showVelocity == true) {
+            displayVector(bodies[i].position,bodies[i].velocity,10,color(255,0,0));
+        }
+        if (showAcceleration == true) {
+            displayVector(bodies[i].position,p5.Vector.normalize(bodies[i].acceleration),20,color(0,100,255));
+        }
+
+        // reset body for next frame
+        bodies[i].clearAcceleration();
     }
 }
 
@@ -76,7 +92,9 @@ class Body {
         // apply movement
         this.velocity.add(this.acceleration);
         this.position.add(this.velocity);
-        
+    }
+
+    clearAcceleration() {    
         // clear acceleration
         this.acceleration.mult(0);
     }
@@ -115,3 +133,31 @@ class Body {
         return fvector;
     }
 }
+
+function displayVector(o,v,mul,color) {
+    // create new coord system
+    push();
+
+    // set origin to origin of vector
+    // still the SAME ROTATION
+    translate(o.x, o.y);
+
+    stroke(color);
+    strokeWeight(2);
+    fill(color);
+
+    // draw line to represent vector
+    line(0, 0, v.x*mul, v.y*mul);
+    
+    // set origin to "tip" of vector
+    // rotate according to vector.
+    // should draw arrowhead as if pointing "right"
+    translate(v.x*mul, v.y*mul);
+    rotate(v.heading());
+    
+    noStroke();
+
+    triangle(0, 0, -8, -4, -8, 4);
+
+    pop();
+} 
