@@ -1,11 +1,31 @@
 let bpm = 120;
-let beats = 4; // 4 beats in a measure
-let subDiv = 4; // 4 notes to a beat
+let beats = 4; // x beats in a measure
+let subDiv = 4; // x notes to a beat
 let steps = beats * subDiv;
 let stepDuration = 60000 / (bpm*subDiv);
-let stepNumber = 0;
-
 let lastStepTime = 0;
+
+let stepNumber = 0;
+let sequenceTrigger = [true, false, false, true,
+                       true, false, false, false,
+                       true, true, false, false,
+                       true, true, false, true]
+let sequenceValue = ["blue", "violet", "white", "white",
+                     "green", "green", "white", "white",
+                     "black", "black", "black", "white",
+                     "purple", "blue", "white", "white"]
+
+if (sequenceTrigger.length < steps) {
+    for (i = sequenceTrigger.length; i < steps; i++) {
+        sequenceTrigger.push(false)
+    }
+}
+if (sequenceValue.length < steps) {
+    for (i = sequenceValue.length; i < steps; i++) {
+        sequenceValue.push("white")
+    }
+}
+
 
 function setup() {
     createCanvas(800, 600);
@@ -14,32 +34,46 @@ function setup() {
 function draw() {
     background(230,160,180);
 
+    // if this frame is a beat, advance step
     if (isBeat()) {
-        background(200,120,130);
-        stepNumber += 1;
+        stepNumber = (stepNumber + 1) % steps;
     }
 
+    // draw sequencer track
+    for (i = 0; i < steps; i++) {
+        stroke('black');
+        if (sequenceTrigger[i]) {
+            if (stepNumber === i) {
+                fill(sequenceValue[i]);
+            } else {
+                fill('lightgreen');
+            }
+        } else {
+            if (stepNumber === i) {
+                fill(200,120,130);
+            } else {
+                fill(250,180,200);
+            }
+        }
+        rect(i*(width/steps),(height-50)/2,width/steps,50);
+        fill(sequenceValue[i]);
+        rect(i*(width/steps),(height-50)/2+50+20,width/steps,10)
+    }
+
+    // display debugging text
     noStroke();
-    if (stepNumber === floor(bpm * (millis() / 60000))) {
-        fill('green');
-    } else {
-        fill('red');
-    }
-    rect(20, 20, width-40, height-40);
-
     fill(0);
     textAlign(CENTER);
     text(`${steps} notes to a measure at ${bpm} bpm is ${stepDuration} ms per note.`, width/2, height*0.25);
-    text(`${steps*stepDuration/1000} sec for the whole sequence.`, width/2, height*0.5);
-    text(`${stepNumber} steps counted vs ${floor(bpm * (millis() / 60000))} in theory.`,width/2, height*0.75);
+    text(`${steps*stepDuration/1000} sec for the whole sequence.`, width/2, height*0.25+40);
+    text(`${stepNumber} / ${steps}`,width/2, height*0.75);
 
 }
 
 function isBeat() {
-    let beat = bpm * (millis() / 60000);
-    let onBeat = (millis() - lastStepTime >= stepDuration*subDiv);
+    let onBeat = (millis() - lastStepTime >= stepDuration);
     if (onBeat) {
-        lastStepTime += stepDuration*subDiv;
+        lastStepTime += stepDuration;
     }
     return onBeat
 }
